@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Numbered-Note Player (Jianpu) – Type Notes, Press Play</title>
+<style>
+  :root { --bg:#0b1220; --fg:#eaf2ff; --muted:#9fb3d1; --accent:#9ae6b4; --card:#111a2c; --cta:#86b6ff; }
+  body { margin:0; font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:linear-gradient(180deg,#0d1628,#0a0f1d); color:var(--fg); }
+  header { padding:24px 20px; text-align:center; }
+  header h1 { margin:0 0 10px; font-size:1.6rem; }
+  header p { margin:0; color:var(--muted); }
+  .wrap { max-width:980px; margin:24px auto 60px; padding:0 16px; display:grid; gap:18px; grid-template-columns: 1fr; }
+  .card { background:var(--card); border:1px solid #1e2a43; border-radius:16px; padding:16px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+  .row { display:flex; flex-wrap:wrap; gap:12px; align-items:center; }
+  label { font-size:.9rem; color:var(--muted); }
+  input[type="number"], select, input[type="text"] {
+    background:#0c1426; color:var(--fg); border:1px solid #253454; border-radius:10px; padding:10px 12px; min-width:90px;
+  }
+  input[type="range"] { width:180px; }
+  textarea {
+    width:100%; min-height:150px; resize:vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background:#0c1426; color:var(--fg); border:1px solid #253454; border-radius:12px; padding:12px;
+  }
+  .btn {
+    cursor:pointer; background:linear-gradient(90deg,#4f8cff,#86b6ff); color:#041022; border:none; border-radius:12px; padding:12px 16px; font-weight:700;
+    box-shadow: 0 6px 22px rgba(30,120,255,.25); transition: transform .05s ease;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn.secondary { background:#17233a; color:var(--fg); box-shadow:none; border:1px solid #243556; }
+  .pill { display:inline-block; padding:6px 10px; border-radius:999px; background:#12203a; color:var(--muted); font-size:.85rem; }
+  .examples code { background:#0c1426; border:1px solid #253454; padding:4px 6px; border-radius:8px; }
+  .status { min-height:20px; color:var(--accent); font-size:.95rem; }
+  .progress { height:10px; background:#0c1426; border:1px solid #223255; border-radius:999px; overflow:hidden; }
+  .bar { height:100%; width:0%; background:linear-gradient(90deg,#86b6ff,#9ae6b4); transition: width .1s linear; }
+  footer { color:var(--muted); text-align:center; padding:20px; }
+  .hl { color:#ffd56b; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>🎵 Numbered-Note Player – Type Notes, Press Play</h1>
+    <p>Write melodies with simple numbers (1–7). High notes as <span class="hl">1'</span>, low notes as <span class="hl">1,</span>. Optional durations like <span class="hl">3:1.5</span> (beats). Press <b>Play</b>.</p>
+  </header>
+
+  <div class="wrap">
+    <section class="card">
+      <div class="row" style="justify-content:space-between; gap:16px;">
+        <div class="row">
+          <label>Key&nbsp;
+            <select id="key">
+              <option>C</option><option>C#</option><option>D</option><option>Eb</option><option>E</option><option>F</option>
+              <option>F#</option><option>G</option><option>Ab</option><option>A</option><option>Bb</option><option>B</option>
+            </select>
+          </label>
+          <label>Octave (Do = middle C at 4)&nbsp;
+            <input id="octave" type="number" value="4" min="1" max="7" />
+          </label>
+          <label>BPM&nbsp;<input id="bpm" type="number" value="100" min="20" max="300" /></label>
+          <label>Instrument&nbsp;
+            <select id="wave">
+              <option value="sine">Sine</option>
+              <option value="triangle">Triangle</option>
+              <option value="square">Square</option>
+              <option value="sawtooth">Saw</option>
+            </select>
+          </label>
+          <label>Volume&nbsp;<input id="vol" type="range" min="0" max="1" step="0.01" value="0.6" /></label>
+          <label>Default note length (beats)&nbsp;<input id="defaultLen" type="number" value="1" min="0.1" step="0.1" /></label>
+        </div>
+        <div class="row">
+          <button class="btn" id="play">▶ Play</button>
+          <button class="btn secondary" id="stop">■ Stop</button>
+        </div>
+      </div>
+      <div class="status" id="status"></div>
+      <div class="progress"><div class="bar" id="bar"></div></div>
+    </section>
+
+    <section class="card">
+      <label for="notes">Your notes (numbered notation)</label>
+      <textarea id="notes" placeholder="Examples:
+1 2 3 4 5 6 7 1'
+1 | 1 5 5 | 6 6 5:2 | 4 4 3:2 | 5 5 4 4 3 3 2 2 | 1:4
+low7 1 2 | 3 2 1' 7, 0 5 5"></textarea>
+      <div class="examples" style="margin-top:10px">
+        <span class="pill">Syntax cheatsheet</span>
+        <p>
+          • Notes: <code>1 2 3 4 5 6 7</code> (Do–Ti). High octave: <code>1'</code> (one or more <code>'</code>). Low octave: <code>1,</code> (one or more <code>,</code>).<br>
+          • Also supported: <code>high3</code>, <code>low6</code>. Accidentals: <code>3#</code>, <code>4b</code>.<br>
+          • Durations (beats): <code>3:1.5</code> = 1.5 beats. Default length uses the control above.<br>
+          • Rests: <code>0</code> or <code>r</code>. Bars <code>|</code> are ignored (for readability).<br>
+          • Example (Happy Birthday start): <code>5 5 6 5 1' 7</code>
+        </p>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3 style="margin-top:0">What this site does</h3>
+      <p>
+        This mini tool lets you sketch melodies in <b>numbered notation</b> (a.k.a. <i>jianpu</i>) without reading staff. 
+        Type numbers for scale degrees, add simple octave marks (<code>'</code> for higher, <code>,</code> for lower), sprinkle in durations like <code>:2</code> for two beats, and click <b>Play</b>. 
+        You can change key, tempo, instrument, and volume on the fly. It’s perfect for quick practice, teaching, or testing a melody idea.
+      </p>
+      <ul>
+        <li>Major scale mapping per key (Do–Ti = 1–7)</li>
+        <li>Accidentals with <code>#</code> or <code>b</code> (e.g., <code>3#</code>, <code>4b</code>)</li>
+        <li>Rests with <code>0</code> or <code>r</code></li>
+        <li>Clean timing based on BPM; Web Audio envelope for smoother notes</li>
+      </ul>
+    </section>
+  </div>
+
+  <footer>Tip: On phones, tap inside the page once before Play (enables audio). Built with the Web Audio API.</footer>
+
+<script>
+(() => {
+  // --- Music math helpers ---
+  const A4 = 440;
+  const SEMITONES = { // name -> semitone from C
+    'C':0,'C#':1,'Db':1,'D':2,'D#':3,'Eb':3,'E':4,'F':5,'F#':6,'Gb':6,'G':7,'G#':8,'Ab':8,'A':9,'A#':10,'Bb':10,'B':11
+  };
+  const MAJOR_INTERVALS = [0,2,4,5,7,9,11]; // 1..7
+  function noteToFreq(keyName, octave, degree, accidental=0, octaveShift=0){
+    // Base: key's tonic frequency at given octave
+    // Compute semitones from A4 -> target
+    const keySemiFromC = SEMITONES[keyName];
+    const middleCOctave = 4; // C4 ~ 261.63
+    // C octave to A4 semitones offset:
+    const c4ToA4 = 9; // A is 9 semitones above C
+    // semitones from A4 to our tonic (key's Do at 'octave')
+    const tonicFromA4 = ( (octave - 4) * 12 ) + (keySemiFromC - c4ToA4);
+    const degreeIdx = degree - 1;
+    const scaleSemi = MAJOR_INTERVALS[degreeIdx] + accidental + (octaveShift * 12);
+    const totalFromA4 = tonicFromA4 + scaleSemi;
+    return A4 * Math.pow(2, totalFromA4/12);
+  }
+
+  // Parse tokens like: 3, 3', 3,, 3# 4b, high3, low7, 3:1.5, r, 0, and bars |
+  // Parse tokens: now also detect newline as special pause
+// Parse tokens: support :duration OR (duration), plus newline pause
+// Format: number(2), number:2, high3(1.5), low6, 3#(2), etc.
+const TOKEN_RE = /(?:(high|low))?([1-7]|[rR]|0)([#b]?)([',]*)(?::([\d.]+)|\(([\d.]+)\))?|(\|)|(\n+)/g;
+
+function parse(input, defaultLenBeats) {
+  const clean = input.trim();
+  let m, list = [];
+  TOKEN_RE.lastIndex = 0;
+  while ((m = TOKEN_RE.exec(clean)) !== null) {
+    if (m[8]) { // newline
+      list.push({ type: 'rest', beats: 1.5 * defaultLenBeats });
+      continue;
+    }
+    if (m[7]) continue; // bar '|'
+    
+    let prefix = m[1] || '';
+    let core   = m[2];
+    let accStr = m[3] || '';
+    let marks  = m[4] || '';
+    let lenStr = m[5] || m[6]; // :duration or (duration)
+    if (!core) continue;
+
+    // Rest
+    if (core.toLowerCase() === 'r' || core === '0') {
+      list.push({ type: 'rest', beats: lenStr ? parseFloat(lenStr) : defaultLenBeats });
+      continue;
+    }
+
+    const degree = parseInt(core, 10);
+    let accidental = 0;
+    if (accStr === '#') accidental = +1;
+    if (accStr === 'b') accidental = -1;
+
+    let shift = 0;
+    for (const ch of marks) {
+      if (ch === "'") shift += 1;
+      if (ch === ",") shift -= 1;
+    }
+    if (prefix === 'high') shift += 1;
+    if (prefix === 'low')  shift -= 1;
+
+    const beats = lenStr ? parseFloat(lenStr) : defaultLenBeats;
+    if (!isFinite(beats) || beats <= 0) throw new Error(`Invalid duration near "${m[0]}".`);
+    list.push({ type: 'note', degree, accidental, shift, beats });
+  }
+  if (list.length === 0) throw new Error("No playable tokens found.");
+  return list;
+}
+
+
+
+  // --- Audio engine ---
+  let ctx, master, playing = false, timers = [], actives = [];
+
+  function ensureAudio(){
+    if (!ctx) {
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      master = ctx.createGain();
+      master.gain.value = parseFloat(document.getElementById('vol').value);
+      master.connect(ctx.destination);
+    }
+    if (ctx.state === 'suspended') ctx.resume();
+  }
+
+  function setVolume(v){
+    if (master) master.gain.value = v;
+  }
+
+  function schedule(list, opts){
+    const {bpm, key, baseOctave, wave, onProgress} = opts;
+    const beatSec = 60 / bpm;
+    const startT = ctx.currentTime + 0.07; // small lookahead
+    let t = startT;
+    const totalBeats = list.reduce((s,n)=> s + n.beats, 0);
+    let doneBeats = 0;
+
+    list.forEach((ev, idx) => {
+      const dur = ev.beats * beatSec;
+      if (ev.type === 'rest') {
+        // progress + timer only
+      } else {
+        const freq = noteToFreq(key, baseOctave, ev.degree, ev.accidental, ev.shift);
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = wave;
+        // Simple ADSR-like envelope
+        const a = 0.01, d = 0.05, s = 0.85, r = 0.08;
+        const peak = 0.9;
+        const g = gain.gain;
+        g.cancelScheduledValues(t);
+        g.setValueAtTime(0.0001, t);
+        g.linearRampToValueAtTime(peak, t + a);
+        g.linearRampToValueAtTime(peak * s, t + a + d);
+        // release
+        const endT = t + Math.max(0.04, dur - r);
+        g.setTargetAtTime(0.0001, endT, r/3);
+
+        osc.frequency.setValueAtTime(freq, t);
+        osc.connect(gain);
+        gain.connect(master);
+
+        osc.start(t);
+        osc.stop(t + Math.max(0.05, dur + 0.02));
+        actives.push(osc, gain);
+      }
+
+      // UI progress
+      const localStart = t;
+      const localEnd = t + dur;
+      const timer = setInterval(() => {
+        const now = ctx.currentTime;
+        const clamped = Math.min(localEnd, Math.max(localStart, now));
+        const fracDone = (doneBeats * beatSec + (clamped - localStart)) / (totalBeats * beatSec);
+        onProgress(Math.min(1, Math.max(0, fracDone)));
+        if (now >= localEnd) {
+          clearInterval(timer);
+        }
+      }, 50);
+      timers.push(timer);
+
+      t += dur;
+      doneBeats += ev.beats;
+    });
+
+    // final cleanup
+    const finalTimer = setTimeout(() => stopPlayback(true), (t - startT + 0.2)*1000);
+    timers.push(finalTimer);
+  }
+
+  function stopPlayback(silent=false){
+    playing = false;
+    timers.forEach(id => clearInterval(id));
+    timers = [];
+    actives.forEach(node => { try { node.disconnect(); } catch{} try { node.stop(0); } catch{} });
+    actives = [];
+    if (!silent) {
+      document.getElementById('status').textContent = "Stopped.";
+      document.getElementById('bar').style.width = '0%';
+    }
+  }
+
+  // --- UI wiring ---
+  const els = {
+    notes: document.getElementById('notes'),
+    key: document.getElementById('key'),
+    octave: document.getElementById('octave'),
+    bpm: document.getElementById('bpm'),
+    wave: document.getElementById('wave'),
+    vol: document.getElementById('vol'),
+    defaultLen: document.getElementById('defaultLen'),
+    play: document.getElementById('play'),
+    stop: document.getElementById('stop'),
+    status: document.getElementById('status'),
+    bar: document.getElementById('bar')
+  };
+
+  els.vol.addEventListener('input', e => setVolume(parseFloat(e.target.value)));
+
+  els.play.addEventListener('click', async () => {
+    try {
+      ensureAudio();
+      if (playing) stopPlayback(true);
+      const list = parse(els.notes.value, parseFloat(els.defaultLen.value));
+      const bpm = parseFloat(els.bpm.value);
+      const key = els.key.value;
+      const baseOctave = parseInt(els.octave.value,10);
+      const wave = els.wave.value;
+
+      if (!(bpm > 0)) throw new Error("BPM must be positive.");
+      if (!Number.isInteger(baseOctave)) throw new Error("Octave must be an integer.");
+
+      playing = true;
+      els.status.textContent = `Playing ${list.length} tokens in ${key} major @ ${bpm} BPM…`;
+      els.bar.style.width = '0%';
+
+      schedule(list, {
+        bpm, key, baseOctave, wave,
+        onProgress: (p) => { els.bar.style.width = `${(p*100).toFixed(1)}%`; }
+      });
+    } catch (err) {
+      stopPlayback(true);
+      els.status.textContent = `Error: ${err.message}`;
+    }
+  });
+
+  els.stop.addEventListener('click', () => stopPlayback());
+})();
+</script>
+</body>
+</html>
